@@ -1,0 +1,38 @@
+/* ── Design tokens ────────────────────────────────────────────── */
+:root {
+  --ink: #0f0e0d;
+  --paper: #f5f2ee;
+  --cream: #ede9e3;
+  --amber: #d4820a;
+  --amber-light: #f0a930;
+  --amber-pale: #fef3dc;
+  --teal: #1a6b6b;
+  --teal-light: #e8f4f4;
+  --muted: #7a7470;
+  --border: #d9d4cc;
+  --shadow: 0 2px 12px rgba(15, 14, 13, 0.08);
+  --shadow-lg: 0 8px 32px rgba(15, 14, 13, 0.12);
+}
+
+/* ── Reset ────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+/* ── Typography helpers ───────────────────────────────────────── */
+strong { font-weight: 600; }
+em     { font-style: italic; }
