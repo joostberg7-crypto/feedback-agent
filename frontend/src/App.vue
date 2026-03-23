@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import ToastContainer from '@/components/ui/ToastContainer.vue'
+import AppHeader from '@/components/layout/AppHeader.vue'
 
 const route = useRoute()
 </script>
@@ -42,6 +43,7 @@ const route = useRoute()
 
     <!-- Main content -->
     <main class="main-content">
+      <AppHeader />
       <RouterView />
     </main>
   </div>
