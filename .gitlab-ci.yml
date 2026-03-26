@@ -12,5 +12,5 @@ gcp-auth:
     - ./get_token.sh   
     - gcloud config set auth/access_token_file $(pwd)/gcp_temp_token.txt
     - gcloud auth list
-    - gcloud config set project "gcp-hva-hbo-ict-prgr-3" 
+    - gcloud config set project "gcp-hva-hbo-ict-prgr-1" 
     - gcloud iam service-accounts list
