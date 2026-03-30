@@ -1,9 +1,26 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import ToastContainer from '@/components/ui/ToastContainer.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
+const { success, error } = useToast()
+
+// Zodra de app inlaadt, testen we de API
+onMounted(async () => {
+  try {
+    const response = await fetch('/api/health')
+    const data = await response.json()
+    
+    if (data.status === 'ok') {
+      success('Succesvol verbonden met de lokale backend!')
+    }
+  } catch (err) {
+    error('Let op: kan de lokale backend niet bereiken.')
+  }
+})
 </script>
 
 <template>

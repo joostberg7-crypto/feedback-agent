@@ -1,6 +1,8 @@
 # hva-ai-agent-2
 
-
+npm run dev
+docker build -t hva-feedback-backend .
+docker run -p 8080:8080 hva-feedback-backend
 
 ## Getting started
 
