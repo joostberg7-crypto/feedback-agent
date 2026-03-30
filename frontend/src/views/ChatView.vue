@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, watch } from 'vue'
 import { useSessionsStore } from '@/stores/sessions'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
@@ -9,139 +9,69 @@ const store = useSessionsStore()
 const isLoading = ref(false)
 const scrollContainer = ref<HTMLElement | null>(null)
 
-/**
- * Returns the messages that belong to the currently active session.
- * Returns an empty array when no session is open yet.
- */
 function getActiveMessages(): Message[] {
   const session = store.getActiveSession()
-  if (session === null) {
-    return []
-  }
-  return session.messages
+  return session ? session.messages : []
 }
 
-/**
- * Waits for Vue to update the DOM and then scrolls the message list
- * all the way to the bottom so the latest message is always visible.
- */
 async function scrollToBottom() {
   await nextTick()
-  if (scrollContainer.value !== null) {
+  if (scrollContainer.value) {
     scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
   }
 }
 
-/**
- * Runs once when the component loads.
- * Makes sure there is always an active session open.
- * If the active session is brand new (0 messages), we add the welcome message.
- */
-onMounted(() => {
-  // If no session is open yet, create a new one
-  const existingSession = store.getActiveSession()
-  if (existingSession === null) {
-    store.createNewSession()
-  }
+watch(() => getActiveMessages().length, scrollToBottom)
 
-  // Add the welcome message only to a fresh empty session
-  const currentSession = store.getActiveSession()
-  if (currentSession !== null && currentSession.messages.length === 0) {
-    store.addMessageToSession(currentSession.id, {
-      id: crypto.randomUUID(),
-      role: 'agent',
-      content:
-        'Hallo! Ik ben je feedback-agent. Plak of beschrijf een gesprek met een student, ' +
-        'en ik help je om geschreven feedback op te stellen op basis van Hattie & Timperley.\n\n' +
-        "You can also write in English — I'll follow your language.",
-      timestamp: new Date(),
-    })
-  }
-})
-
-/**
- * Called when the teacher submits a message in the chat input.
- * Steps:
- * 1. Save the teacher's message to the session
- * 2. Add a temporary empty "agent thinking" message
- * 3. Call the Anthropic API
- * 4. Fill in the agent's reply once the API responds
- *
- * @param content - The text the teacher typed and submitted
- */
 async function handleSend(content: string) {
-  const sessionId = store.activeSessionId
-  // Do nothing if somehow no session is active
-  if (sessionId === null) {
-    return
-  }
+  const session = store.getActiveSession()
+  if (!session) return
 
-  // Step 1 — save and show the teacher's message
-  const userMessage: Message = {
+  // Toon bericht docent direct in UI
+  session.messages.push({
     id: crypto.randomUUID(),
     role: 'user',
     content: content,
-    timestamp: new Date(),
-  }
-  store.addMessageToSession(sessionId, userMessage)
-  await scrollToBottom()
-
-  // Step 2 — add a placeholder for the agent's reply while we wait for the API
-  const agentMessageId = crypto.randomUUID()
-  const agentPlaceholder: Message = {
-    id: agentMessageId,
+    timestamp: new Date()
+  })
+  
+  isLoading.value = true
+  
+  // Toon knipperende cursor
+  const placeholderId = crypto.randomUUID()
+  session.messages.push({
+    id: placeholderId,
     role: 'agent',
     content: '',
     timestamp: new Date(),
-    isStreaming: true, // This shows the blinking cursor
-  }
-  store.addMessageToSession(sessionId, agentPlaceholder)
-  isLoading.value = true
+    isStreaming: true
+  })
   await scrollToBottom()
 
-  // Step 3 — call the Anthropic API
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    // Stuur bericht naar de backend
+    const response = await fetch(`/api/sessions/${session.id}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: `Je bent een feedback-agent voor HBO-ICT docenten. Je helpt docenten om schriftelijke feedback te formuleren op basis van gesprekken met studenten.
-
-Gebruik de feedbackprincipes van Hattie & Timperley:
-- Feed up: Waar werkt de student naartoe? (leerdoelen)
-- Feed back: Hoe gaat het nu ten opzichte van het doel?
-- Feed forward: Wat zijn concrete volgende stappen?
-
-Richt je feedback altijd op het PROCES en ZELFREGULATIE (niet op de persoon of alleen de taak).
-
-Detecteer automatisch of de gebruiker Nederlands of Engels schrijft en antwoord in dezelfde taal.`,
-        // Only send user messages to the API — agent messages are local
-        messages: getActiveMessages()
-          .filter((m) => m.role === 'user')
-          .map((m) => ({ role: m.role, content: m.content })),
-      }),
+      body: JSON.stringify({ content })
     })
 
-    const responseData = await response.json()
-    // Pull the text out of the API response
-    const replyText =
-      responseData.content?.find((block: { type: string }) => block.type === 'text')?.text ?? '...'
+    const agentData = await response.json()
 
-    // Step 4 — replace the placeholder with the real reply
-    store.updateMessageInSession(sessionId, agentMessageId, {
-      content: replyText,
-      isStreaming: false,
-    })
+    // Vervang de cursor met het opgeslagen dummy-antwoord
+    const idx = session.messages.findIndex(m => m.id === placeholderId)
+    if (idx !== -1) {
+      session.messages[idx] = {
+        id: agentData.id,
+        role: 'agent',
+        content: agentData.content,
+        timestamp: new Date(agentData.createdAt),
+        isStreaming: false
+      }
+    }
   } catch (error) {
-    // If anything goes wrong, show a simple error message instead
-    store.updateMessageInSession(sessionId, agentMessageId, {
-      content: 'Er is iets misgegaan. Probeer het opnieuw.',
-      isStreaming: false,
-    })
+    console.error('Verbindingsfout:', error)
   } finally {
-    // Always turn off the loading state, whether it succeeded or failed
     isLoading.value = false
     await scrollToBottom()
   }

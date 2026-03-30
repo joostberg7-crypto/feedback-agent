@@ -4,21 +4,33 @@ import { RouterView, RouterLink, useRoute } from 'vue-router'
 import ToastContainer from '@/components/ui/ToastContainer.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import { useToast } from '@/composables/useToast'
+import { useSessionsStore } from '@/stores/sessions'
 
 const route = useRoute()
 const { success, error } = useToast()
+const store = useSessionsStore()
 
-// Zodra de app inlaadt, testen we de API
 onMounted(async () => {
+  // 1. Haal de sessies op uit de database
+  await store.fetchAllSessions()
+  
+  // 2. Zorg dat er een actieve sessie open staat
+  if (store.allSessions.length === 0) {
+    await store.createNewSession()
+  } else if (!store.activeSessionId) {
+    store.setActiveSession(store.allSessions[0].id)
+  }
+
+  // 3. API health check
   try {
     const response = await fetch('/api/health')
     const data = await response.json()
     
     if (data.status === 'ok') {
-      success('Succesvol verbonden met de lokale backend!')
+      success('Succesvol verbonden met de Cloud SQL database!')
     }
   } catch (err) {
-    error('Let op: kan de lokale backend niet bereiken.')
+    error('Let op: kan de backend niet bereiken.')
   }
 })
 </script>
