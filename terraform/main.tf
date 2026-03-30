@@ -11,6 +11,11 @@ resource "google_sql_database_instance" "postgres_instance" {
     # later gaan we dit beveiligen.
     ip_configuration {
       ipv4_enabled = true
+
+      authorized_networks {
+        name  = "thuis-netwerk"
+        value = var.my_ip
+      }
     }
   }
 

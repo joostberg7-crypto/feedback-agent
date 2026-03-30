@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// De chat sessie
+model Session {
+  id        String    @id @default(uuid())
+  title     String    @default("Nieuwe Feedback Sessie")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+}
+
+// De losse berichten binnen een sessie
+model Message {
+  id        String   @id @default(uuid())
+  role      String   // Dit wordt "user" (docent) of "ai"
+  content   String
+  createdAt DateTime @default(now())
+  
+  // Relatie met de sessie
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}

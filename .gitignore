@@ -8,3 +8,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/deps
 notes.txt
+
+# Terraform bestanden negeren
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
