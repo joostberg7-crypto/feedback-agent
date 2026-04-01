@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { chatService } from '@/api/chat.service'
 import type { ChatSession } from '@/types'
 
 export const useSessionsStore = defineStore('sessions', () => {
@@ -8,43 +9,36 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   async function fetchAllSessions() {
     try {
-      const res = await fetch('/api/sessions')
-      const data = await res.json()
-      
-      allSessions.value = data.map((s: any) => ({
+      const data = await chatService.fetchAll()
+      allSessions.value = data.map(s => ({
         ...s,
-        // Zorg dat we een 'id' veld hebben voor de frontend
-        id: s.id || s._id, 
+        id: s.id || (s as any)._id,
         language: 'nl',
         createdAt: new Date(s.createdAt),
         updatedAt: new Date(s.updatedAt || s.createdAt),
         messages: (s.messages || []).map((m: any) => ({
           ...m,
-          // Gebruik de timestamp van MongoDB
-          timestamp: new Date(m.timestamp || m.createdAt || Date.now())
+          timestamp: new Date(m.timestamp || Date.now())
         }))
       }))
     } catch (err) {
-      console.error("Fout bij ophalen sessies:", err)
+      console.error("Fout bij ophalen:", err)
     }
   }
 
   async function createNewSession() {
-    const res = await fetch('/api/sessions', { method: 'POST' })
-    const newSession = await res.json()
-    
-    const formattedSession: ChatSession = {
-      ...newSession,
-      id: newSession.id || newSession._id, // Vertaling voor MongoDB
+    const session = await chatService.create()
+    const formatted: ChatSession = {
+      ...session,
+      id: session.id || (session as any)._id,
       language: 'nl',
-      createdAt: new Date(newSession.createdAt),
-      updatedAt: new Date(newSession.updatedAt || newSession.createdAt),
+      createdAt: new Date(session.createdAt),
+      updatedAt: new Date(session.updatedAt || session.createdAt),
       messages: []
     }
-    
-    allSessions.value.unshift(formattedSession)
-    activeSessionId.value = formattedSession.id
-    return formattedSession
+    allSessions.value.unshift(formatted)
+    activeSessionId.value = formatted.id
+    return formatted
   }
 
   function setActiveSession(id: string) {
@@ -52,16 +46,13 @@ export const useSessionsStore = defineStore('sessions', () => {
   }
 
   function getActiveSession(): ChatSession | null {
-    // Zoek op het gemapte 'id' veld
-    return allSessions.value.find((s) => (s.id || (s as any)._id) === activeSessionId.value) || null
+    return allSessions.value.find(s => s.id === activeSessionId.value) || null
   }
 
   async function deleteSession(id: string) {
-    await fetch(`/api/sessions/${id}`, { method: 'DELETE' })
-    allSessions.value = allSessions.value.filter((s) => (s.id || (s as any)._id) !== id)
-    if (activeSessionId.value === id) {
-      activeSessionId.value = null
-    }
+    await chatService.delete(id)
+    allSessions.value = allSessions.value.filter(s => s.id !== id)
+    if (activeSessionId.value === id) activeSessionId.value = null
   }
 
   return {

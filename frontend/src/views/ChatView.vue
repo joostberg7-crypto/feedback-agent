@@ -4,6 +4,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import type { Message } from '@/types'
+import { chatService } from '@/api/chat.service'
 
 const store = useSessionsStore()
 const isLoading = ref(false)
@@ -26,55 +27,27 @@ watch(() => getActiveMessages().length, scrollToBottom)
 async function handleSend(content: string) {
   const session = store.getActiveSession()
   if (!session) return
-  const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 
-  // Toon bericht docent direct in UI
+  // 1. Voeg direct toe aan UI voor snelheid
   session.messages.push({
-    id: generateId(),
+    id: Math.random().toString(),
     role: 'user',
-    content: content,
+    content,
     timestamp: new Date()
   })
-  
-  isLoading.value = true
-  
-  // Toon knipperende cursor
-  const placeholderId = generateId()
-  session.messages.push({
-    id: placeholderId,
-    role: 'agent',
-    content: '',
-    timestamp: new Date(),
-    isStreaming: true
-  })
-  await scrollToBottom()
 
+  // 2. Laat de service het werk doen
   try {
-    // Stuur bericht naar de backend
-    const response = await fetch(`/api/sessions/${session.id}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content })
+    const response = await chatService.sendMessage(session.id, content)
+    // Voeg AI antwoord toe aan de lijst
+    session.messages.push({
+      id: response.id,
+      role: 'user',
+      content: response.content,
+      timestamp: new Date(response.createdAt)
     })
-
-    const agentData = await response.json()
-
-    // Vervang de cursor met het opgeslagen dummy-antwoord
-    const idx = session.messages.findIndex(m => m.id === placeholderId)
-    if (idx !== -1) {
-      session.messages[idx] = {
-        id: agentData.id || generateId(),
-        role: 'agent',
-        content: agentData.content,
-        timestamp: new Date(agentData.createdAt || Date.now()),
-        isStreaming: false
-      }
-    }
   } catch (error) {
-    console.error('Verbindingsfout:', error)
-  } finally {
-    isLoading.value = false
-    await scrollToBottom()
+    console.error("Chat fout:", error)
   }
 }
 </script>
