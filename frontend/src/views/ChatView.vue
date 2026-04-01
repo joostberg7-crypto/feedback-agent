@@ -26,10 +26,11 @@ watch(() => getActiveMessages().length, scrollToBottom)
 async function handleSend(content: string) {
   const session = store.getActiveSession()
   if (!session) return
+  const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 
   // Toon bericht docent direct in UI
   session.messages.push({
-    id: crypto.randomUUID(),
+    id: generateId(),
     role: 'user',
     content: content,
     timestamp: new Date()
@@ -38,7 +39,7 @@ async function handleSend(content: string) {
   isLoading.value = true
   
   // Toon knipperende cursor
-  const placeholderId = crypto.randomUUID()
+  const placeholderId = generateId()
   session.messages.push({
     id: placeholderId,
     role: 'agent',
@@ -62,10 +63,10 @@ async function handleSend(content: string) {
     const idx = session.messages.findIndex(m => m.id === placeholderId)
     if (idx !== -1) {
       session.messages[idx] = {
-        id: agentData.id,
+        id: agentData.id || generateId(),
         role: 'agent',
         content: agentData.content,
-        timestamp: new Date(agentData.createdAt),
+        timestamp: new Date(agentData.createdAt || Date.now()),
         isStreaming: false
       }
     }

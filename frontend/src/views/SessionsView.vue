@@ -12,7 +12,10 @@ const store = useSessionsStore()
  */
 function getSortedSessions() {
   return [...store.allSessions].sort((a, b) => {
-    return b.updatedAt.getTime() - a.updatedAt.getTime()
+    // Gebruik createdAt als updatedAt niet bestaat om crashes te voorkomen
+    const timeA = (b.updatedAt || b.createdAt).getTime()
+    const timeB = (a.updatedAt || a.createdAt).getTime()
+    return timeA - timeB
   })
 }
 
@@ -31,8 +34,14 @@ function openSession(id: string) {
  * Creates a brand new empty session and navigates to the chat view.
  * The store will automatically set the new session as active.
  */
-function startNewSession() {
-  store.createNewSession()
+async function startNewSession() {
+  // Wacht tot de store en dus de database klaar is
+  const newSession = await store.createNewSession()
+  
+  // Zet de nieuwe sessie direct op actief
+  store.setActiveSession(newSession.id)
+  
+  // Ga nu pas naar de chat-interface
   router.push('/')
 }
 

@@ -11,26 +11,28 @@ const { success, error } = useToast()
 const store = useSessionsStore()
 
 onMounted(async () => {
-  // 1. Haal de sessies op uit de database
+  // 1. Haal alle sessies op
   await store.fetchAllSessions()
   
-  // 2. Zorg dat er een actieve sessie open staat
+  // 2. Zorg dat er een actieve sessie is
   if (store.allSessions.length === 0) {
-    await store.createNewSession()
+    // Maak een nieuwe en pak het resultaat terug
+    const newSession = await store.createNewSession()
+    store.setActiveSession(newSession.id)
   } else if (!store.activeSessionId) {
+    // Pak de meest recente sessie uit de lijst
     store.setActiveSession(store.allSessions[0].id)
   }
 
-  // 3. API health check
+  // 3. Health check
   try {
     const response = await fetch('/api/health')
     const data = await response.json()
-    
     if (data.status === 'ok') {
-      success('Succesvol verbonden met de Cloud SQL database!')
+      success('Succesvol verbonden met de database!')
     }
   } catch (err) {
-    error('Let op: kan de backend niet bereiken.')
+    error('Backend onbereikbaar.')
   }
 })
 </script>

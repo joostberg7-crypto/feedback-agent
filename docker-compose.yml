@@ -1,0 +1,14 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "9050:8080" # We mappen poort 9050 van OEGE naar 8080 in de container
+    env_file:
+      - ./backend/.env
+    restart: always
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "9051:80" # We mappen poort 9051 van OEGE naar 80 in de container
+    restart: always

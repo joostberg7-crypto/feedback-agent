@@ -1,5 +1,5 @@
-# Gebruik een lichte en veilige Node.js basis image
-FROM node:20-alpine
+# lichte Node.js versie
+FROM node:18-alpine
 
 # Stel de werkmap in de container in
 WORKDIR /app
@@ -10,14 +10,11 @@ COPY package*.json ./
 # Installeer de dependencies
 RUN npm install
 
-# Kopieer de rest van de applicatiecode
+# Kopieer de rest van de backend code naar de container
 COPY . .
 
-# Genereer de Prisma client specifiek voor deze Linux container
-RUN npx prisma generate
-
-# Stel de poort bloot voor Cloud Run
+# Zet de poort open
 EXPOSE 8080
 
-# Start het script
+# Start de server direct via ts-node
 CMD ["npx", "ts-node", "src/index.ts"]
