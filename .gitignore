@@ -14,3 +14,6 @@ notes.txt
 *.tfstate
 *.tfstate.*
 *.tfvars
+
+gitlab_oege_key
+gitlab_oege_key.pub
