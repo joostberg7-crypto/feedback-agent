@@ -1,0 +1,6 @@
+services:
+  backend:
+    build: ./backend # Overschrijft 'image' met de lokale build
+  
+  frontend:
+    build: ./frontend # Overschrijft 'image' met de lokale build

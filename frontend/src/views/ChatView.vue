@@ -1,53 +1,104 @@
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, computed, onMounted } from 'vue'
 import { useSessionsStore } from '@/stores/sessions'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
-import type { Message } from '@/types'
 import { chatService } from '@/api/chat.service'
 
+/**
+ * We halen de store erbij zodat we bij alle gesprekken kunnen.
+ * Ook houden we hier bij of de AI nog aan het nadenken is en waar we in de lijst staan.
+ */
 const store = useSessionsStore()
 const isLoading = ref(false)
 const scrollContainer = ref<HTMLElement | null>(null)
 
-function getActiveMessages(): Message[] {
+/**
+ * We kijken hier continu welk gesprek er open staat en welke berichtjes daarbij horen.
+ * Zo zorgen we dat we altijd de juiste tekst op het scherm laten zien.
+ */
+const getActiveMessages = computed(() => {
   const session = store.getActiveSession()
   return session ? session.messages : []
-}
+})
 
+/**
+ * Wij zorgen ervoor dat het scherm automatisch naar beneden zakt.
+ * Zo zie je altijd het allernieuwste berichtje zonder dat je zelf hoeft te scrollen.
+ */
 async function scrollToBottom() {
   await nextTick()
   if (scrollContainer.value) {
-    scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
+    scrollContainer.value.scrollTo({
+      top: scrollContainer.value.scrollHeight,
+      behavior: 'smooth'
+    })
   }
 }
 
-watch(() => getActiveMessages().length, scrollToBottom)
+/**
+ * Wij houden de lijst met berichtjes goed in de gaten.
+ * Zodra er een berichtje bijkomt of als we van gesprek wisselen, scrollen we direct omlaag.
+ */
+watch(() => getActiveMessages.value.length, scrollToBottom)
+watch(() => store.activeSessionId, scrollToBottom)
 
+// Als we de pagina voor het eerst openen, zorgen we ook dat we onderaan beginnen.
+onMounted(scrollToBottom)
+
+/**
+ * Dit is de functie die we gebruiken als je een berichtje verstuurt.
+ * 1. We zetten jouw tekst in het scherm.
+ * 2. We maken alvast een plekje vrij voor de AI.
+ * 3. We halen de tekst live op bij de AI en laten die woord voor woord verschijnen.
+ * @param content - De tekst die de gebruiker naar de assistent stuurt.
+ */
 async function handleSend(content: string) {
   const session = store.getActiveSession()
-  if (!session) return
+  if (!session || isLoading.value) return
 
-  // 1. Voeg direct toe aan UI voor snelheid
+  isLoading.value = true
+
+  // Wij voegen eerst jouw eigen berichtje toe aan het gesprek.
   session.messages.push({
-    id: Math.random().toString(),
-    role: 'user',
+    id: Date.now().toString(),
+    role: 'user', 
     content,
     timestamp: new Date()
   })
 
-  // 2. Laat de service het werk doen
+  // We maken een leeg berichtje aan voor de agent waar de tekst live in kan 'stromen'.
+  const agentMessageId = 'streaming-' + Date.now();
+  session.messages.push({
+    id: agentMessageId,
+    role: 'agent', 
+    content: '',
+    isStreaming: true, // Hiermee weten we dat de AI nog bezig is.
+    timestamp: new Date()
+  })
+
+  await scrollToBottom()
+
+  // Wij starten hier de verbinding om het antwoord van de AI live binnen te krijgen.
   try {
-    const response = await chatService.sendMessage(session.id, content)
-    // Voeg AI antwoord toe aan de lijst
-    session.messages.push({
-      id: response.id,
-      role: 'user',
-      content: response.content,
-      timestamp: new Date(response.createdAt)
-    })
+    await chatService.sendMessageStream(
+      session.id, 
+      content, 
+      (chunk) => {
+        // Telkens als er een nieuw woordje komt, voegen we dat toe en scrollen we mee.
+        store.updateLastMessageContent(session.id, chunk)
+        scrollToBottom()
+      }
+    )
+    
+    // Als de AI klaar is, zetten we het 'streamen' uit.
+    const lastMsg = session.messages.find(m => m.id === agentMessageId);
+    if (lastMsg) lastMsg.isStreaming = false;
+
   } catch (error) {
-    console.error("Chat fout:", error)
+    console.error("Er ging iets mis tijdens het chatten:", error)
+  } finally {
+    isLoading.value = false
   }
 }
 </script>
@@ -63,7 +114,7 @@ async function handleSend(content: string) {
     </div>
 
     <div ref="scrollContainer" class="messages-area">
-      <div v-if="getActiveMessages().length === 0" class="empty-state">
+      <div v-if="getActiveMessages.length === 0" class="empty-state">
         <div class="empty-icon">
           <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5"
             stroke-linecap="round" stroke-linejoin="round">
@@ -75,7 +126,7 @@ async function handleSend(content: string) {
       </div>
 
       <ChatMessage
-        v-for="message in getActiveMessages()"
+        v-for="message in getActiveMessages"
         :key="message.id"
         :message="message"
       />
@@ -89,6 +140,7 @@ async function handleSend(content: string) {
 </template>
 
 <style scoped>
+/* Hieronder staan de stijlen die zorgen dat de chat er op elk scherm goed uitziet */
 .chat-view {
   display: flex;
   flex-direction: column;
@@ -96,7 +148,6 @@ async function handleSend(content: string) {
   overflow: hidden;
 }
 
-/* Header */
 .chat-header {
   display: flex;
   align-items: center;
@@ -131,7 +182,6 @@ async function handleSend(content: string) {
   color: var(--muted);
 }
 
-/* Messages area */
 .messages-area {
   flex: 1;
   overflow-y: auto;
@@ -150,7 +200,6 @@ async function handleSend(content: string) {
   border-radius: 4px;
 }
 
-/* Empty state */
 .empty-state {
   flex: 1;
   display: flex;

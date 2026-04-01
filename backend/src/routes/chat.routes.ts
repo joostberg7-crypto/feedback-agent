@@ -6,5 +6,6 @@ const router = Router();
 router.get('/', chatController.getAllSessions);
 router.post('/', chatController.createSession);
 router.post('/:id/chat', chatController.sendMessage);
+router.delete('/:id', chatController.deleteSession);
 
 export default router;
