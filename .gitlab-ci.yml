@@ -1,48 +1,75 @@
 stages:
   - auth
+  - publish
   - deploy
 
+variables:
+  BACKEND_IMAGE: "$DOCKER_USERNAME/feedback-backend:latest"
+  FRONTEND_IMAGE: "$DOCKER_USERNAME/feedback-frontend:latest"
+
+# 1. GCP Auth
 gcp-auth:
   stage: auth
   image: google/cloud-sdk:slim
-  id_tokens:
-    GITLAB_OIDC_TOKEN:
-      aud:  
-        - https://gitlab.fdmci.hva.nl
-  tags:
-    - hva 
+  tags: [hva]
   script:
     - chmod +x ./get_token.sh
     - ./get_token.sh   
     - gcloud config set auth/access_token_file $(pwd)/gcp_temp_token.txt
-    - gcloud auth list
     - gcloud config set project "gcp-hva-hbo-ict-prgr-1-481610"
-    - gcloud iam service-accounts list
 
-# OEGE deployment job
+# 2. Bouw Backend Image
+publish-backend:
+  stage: publish
+  image: { name: "gcr.io/kaniko-project/executor:v1.23.2-debug", entrypoint: [""] }
+  tags: [hva]
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"$(printf "%s:%s" "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context "${CI_PROJECT_DIR}/backend" --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile" --destination "${BACKEND_IMAGE}"
+  only: [main, feat/cicd-pipeline]
+
+# 3. Bouw Frontend Image
+publish-frontend:
+  stage: publish
+  image: { name: "gcr.io/kaniko-project/executor:v1.23.2-debug", entrypoint: [""] }
+  tags: [hva]
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"$(printf "%s:%s" "${DOCKER_USERNAME}" "${DOCKER_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context "${CI_PROJECT_DIR}/frontend" --dockerfile "${CI_PROJECT_DIR}/frontend/Dockerfile" --destination "${FRONTEND_IMAGE}"
+  only: [main, feat/cicd-pipeline]
+
+# 4. Stateless Deployment naar OEGE
 deploy-to-oege:
   stage: deploy
   image: alpine:latest
-  tags:
-    - hva
+  tags: [hva]
   before_script:
     - apk add --no-cache openssh-client
     - eval $(ssh-agent -s)
     - echo "$OEGE_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
     - ssh-keyscan $OEGE_HOST >> ~/.ssh/known_hosts
   script:
+    - echo "Start stateless deployment naar OEGE"
+    
+    # Maak de map eenmalig aan als die niet bestaat
+    - ssh $OEGE_USER@$OEGE_HOST "mkdir -p ~/feedback-agent"
+
+    # Stuur de config bestanden naar de server
+    - scp docker-compose.yml $OEGE_USER@$OEGE_HOST:~/feedback-agent/docker-compose.yml
+    
+    # Maak het .env bestand aan vanuit de Gitlab variabele en stuur het door
+    - echo "$BACKEND_ENV_FILE" > backend.env
+    - scp backend.env $OEGE_USER@$OEGE_HOST:~/feedback-agent/backend.env
+
     - ssh $OEGE_USER@$OEGE_HOST "
         export PATH=/usr/bin:\$PATH &&
         export DOCKER_HOST=unix:///run/user/$OEGE_UID/docker.sock &&
         cd ~/feedback-agent &&
-        git fetch origin &&
-        git checkout $CI_COMMIT_REF_NAME &&
-        git pull origin $CI_COMMIT_REF_NAME &&
-        docker compose up -d --build &&
-        docker system prune -f
+        docker compose pull &&
+        docker compose up -d &&
+        docker image prune -f
       "
-  only:
-    - main
-    - development
+  only: [main, development]
