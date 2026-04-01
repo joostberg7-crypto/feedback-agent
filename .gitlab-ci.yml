@@ -61,8 +61,8 @@ deploy-to-oege:
     - scp docker-compose.yml $OEGE_USER@$OEGE_HOST:~/feedback-agent/docker-compose.yml
     
     # Maak het .env bestand aan vanuit de Gitlab variabele en stuur het door
-    - echo "$BACKEND_ENV_FILE" > backend.env
-    - scp backend.env $OEGE_USER@$OEGE_HOST:~/feedback-agent/backend.env
+    - echo "$BACKEND_ENV_FILE" > .env
+    - scp .env $OEGE_USER@$OEGE_HOST:~/feedback-agent/.env
 
     - ssh $OEGE_USER@$OEGE_HOST "
         export PATH=/usr/bin:\$PATH &&
