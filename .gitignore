@@ -10,7 +10,7 @@ frontend/.vite/deps
 notes.txt
 
 # Terraform bestanden negeren
-.terraform/
+terraform/.terraform/
 *.tfstate
 *.tfstate.*
 *.tfvars
